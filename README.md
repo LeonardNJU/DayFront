@@ -9,6 +9,8 @@
 
 **The open-source CalDAV frontend.**
 
+> **Personal customization:** [SL Calendar deployment snapshot](custom/sl-calendar/README.md) is archived separately from upstream sources.
+
 _Own your day. Own your data._
 
 <p align="center">
