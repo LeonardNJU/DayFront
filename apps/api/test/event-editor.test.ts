@@ -38,6 +38,25 @@ describe('event editing', () => {
     expect(() => ICalendarDocument.parse(source)).not.toThrow();
   });
 
+  it('preserves custom event color and category in iCalendar', () => {
+    const created = createEventData({
+      ...input,
+      color: '#039BE5',
+      category: 'fixed',
+    });
+    expect(created).toContain('X-LEO-COLOR:#039BE5');
+    expect(created).toContain('X-LEO-CATEGORY:fixed');
+    const events = mapCalendarResource(
+      {
+        url: 'https://caldav.test/event.ics',
+        etag: '"v1"',
+        calendarData: created,
+      },
+      'personal',
+    );
+    expect(events[0]).toMatchObject({ color: '#039BE5', category: 'fixed' });
+  });
+
   it('creates and removes recurrence rules', () => {
     const recurring = createEventData({
       ...input,

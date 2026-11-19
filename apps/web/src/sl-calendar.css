@@ -1,0 +1,1074 @@
+/* DayFront visual refresh: flat Google Calendar-inspired weekly timetable.
+   Category colors remain synced with Leo's CalDAV categories. */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --canvas: #fff;
+  --canvas-raised: #fff;
+  --surface: #fff;
+  --surface-solid: #fff;
+  --surface-hover: #f8fafd;
+  --surface-strong: #e8f0fe;
+  --panel: #fff;
+  --panel-soft: #f8fafd;
+  --line: #dadce0;
+  --line-strong: #dadce0;
+  --text: #202124;
+  --text-soft: #5f6368;
+  --muted: #5f6368;
+  --accent: #1a73e8;
+  --accent-strong: #1a73e8;
+  --accent-cool: #1a73e8;
+  --accent-ink: #fff;
+  --today-bg: #e8f0fe;
+  --today-ring: #b7d0f9;
+  --shadow-sm: none;
+  --shadow-lg: 0 8px 24px #2021241c;
+  background: #fff;
+  color: #202124;
+}
+body,
+.app-shell,
+.calendar-main {
+  background: #fff !important;
+}
+body {
+  font-family:
+    Roboto,
+    'Google Sans',
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  letter-spacing: 0;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+.app-shell {
+  min-height: 100vh;
+  height: 100vh;
+  grid-template-columns: 250px minmax(0, 1fr);
+}
+.app-shell.sidebar-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+.sidebar {
+  border-right: 1px solid #dadce0;
+  background: #fff !important;
+  padding: 16px 11px;
+  gap: 8px;
+  box-shadow: none;
+}
+.sidebar .brand {
+  margin-bottom: 9px;
+}
+.sidebar .task-group {
+  border-radius: 10px;
+  box-shadow: none;
+}
+.sidebar .task-list-row {
+  border-radius: 7px;
+}
+.sidebar .task-title-button {
+  font-size: 13px;
+}
+.calendar-main,
+.calendar-main.calendar-is-fullscreen {
+  height: 100vh !important;
+  min-height: 0 !important;
+  padding: 15px 21px !important;
+  overflow: hidden !important;
+  box-shadow: none;
+  border-radius: 0;
+}
+.calendar-main:before {
+  display: none !important;
+}
+.fc {
+  --fc-border-color: #dadce0;
+  --fc-page-bg-color: #fff;
+  --fc-neutral-bg-color: #f8fafd;
+  --fc-today-bg-color: #e8f0fe;
+  --fc-list-event-hover-bg-color: #f1f3f4;
+  min-height: 0;
+}
+.fc .fc-header-toolbar {
+  margin-bottom: 14px !important;
+  align-items: center;
+  gap: 9px;
+}
+.fc .fc-toolbar-title {
+  font-size: clamp(18px, 1.7vw, 24px) !important;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #202124;
+}
+.fc .fc-button-primary {
+  background: #fff !important;
+  color: #3c4043 !important;
+  border: 1px solid #dadce0 !important;
+  border-radius: 5px !important;
+  box-shadow: none !important;
+  font-weight: 500;
+  padding: 7px 10px !important;
+  transition: background-color 0.12s ease;
+}
+.fc .fc-button-primary:hover {
+  background: #f1f3f4 !important;
+  filter: none;
+}
+.fc .fc-button-primary.fc-button-active {
+  background: #e8f0fe !important;
+  color: #1967d2 !important;
+  border-color: #c6dafc !important;
+}
+.fc .fc-button-primary:focus-visible {
+  outline: 2px solid #1a73e8;
+  outline-offset: 2px;
+}
+.fc .fc-col-header-cell {
+  background: #fff !important;
+}
+.fc .fc-col-header-cell-cushion {
+  color: #5f6368;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 9px 4px;
+  letter-spacing: 0.035em;
+}
+.fc .fc-daygrid-day-number {
+  color: #3c4043;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 5px 8px;
+  margin: 3px 4px;
+  border-radius: 50%;
+  background: none;
+}
+.fc .fc-scrollgrid {
+  background: #fff !important;
+  border: 1px solid #dadce0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+.fc .fc-scrollgrid-section > * {
+  background: #fff;
+}
+.fc .fc-timegrid-slot-label-cushion,
+.fc .fc-timegrid-axis-cushion {
+  color: #70757a;
+  font-size: 11px;
+  font-weight: 400;
+}
+.fc .fc-timegrid-slot {
+  height: 1.5em;
+}
+.fc .fc-timegrid-slot-minor {
+  border-top-color: #f1f3f4 !important;
+}
+.fc .fc-day-today {
+  background: #e8f0fe57 !important;
+  box-shadow: none !important;
+}
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  background: #1a73e8 !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+.fc .fc-timegrid-now-indicator-line {
+  border-top: 2px solid #ea4335 !important;
+  z-index: 0 !important;
+}
+.fc .fc-timegrid-now-indicator-arrow {
+  border-color: transparent;
+  border-left-color: #ea4335 !important;
+}
+/* Discard bundled "glassmorphism" and gradients entirely. */
+.fc .fc-event,
+.fc .fc-event:hover,
+.fc .fc-event:focus-visible {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background-image: none !important;
+  background-blend-mode: normal !important;
+  border-style: solid !important;
+  border-width: 0 !important;
+  border-radius: 5px !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  transition: background-color 0.1s !important;
+  margin: 0 2px 1px !important;
+  padding: 0 !important;
+  opacity: 1 !important;
+  font-size: 12px;
+}
+.fc .fc-event:hover,
+.fc .fc-event:focus-visible {
+  filter: brightness(0.94) !important;
+}
+.fc .fc-timegrid-event {
+  position: absolute;
+}
+.fc .fc-timegrid-event .fc-event-main {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: 6px 7px;
+}
+.fc .fc-event .fc-event-main {
+  color: #fff !important;
+}
+.fc .fc-event .calendar-entry-content {
+  display: flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  width: 100%;
+  line-height: 1.32;
+}
+.fc .fc-event .calendar-entry-title {
+  color: inherit !important;
+  text-shadow: none !important;
+  letter-spacing: 0 !important;
+  font-size: 12px;
+  font-weight: 500 !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  white-space: nowrap;
+}
+.fc .fc-event .calendar-entry-time {
+  order: 0;
+  color: inherit !important;
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  opacity: 0.95 !important;
+  padding: 0 !important;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.fc .fc-event .calendar-entry-type,
+.fc .fc-event .calendar-entry-repeat {
+  display: none !important;
+}
+/* Vertical events should fill their true duration with readable multiline text. */
+.fc .fc-timegrid-event .calendar-entry-content,
+.fc .fc-timegrid-event .calendar-entry-content:has(.calendar-entry-time) {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  gap: 3px !important;
+  position: relative;
+}
+.fc .fc-timegrid-event .calendar-entry-title {
+  order: 0;
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+  white-space: normal !important;
+  overflow: hidden !important;
+  overflow-wrap: anywhere;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  font-weight: 600 !important;
+}
+.fc .fc-timegrid-event .calendar-entry-time {
+  order: 1;
+  font-size: 11px !important;
+}
+.fc .fc-daygrid-event .fc-event-main {
+  padding: 2px 6px;
+  overflow: hidden;
+}
+.fc .fc-daygrid-event .calendar-entry-content {
+  min-height: 16px;
+  max-width: 100%;
+}
+/* Checkbox positioned naturally with no extra duplicate icon. */
+.fc .fc-event .leo-calendar-task-toggle {
+  appearance: none;
+  display: inline-grid !important;
+  place-items: center;
+  flex: 0 0 15px;
+  width: 15px;
+  height: 15px;
+  min-width: 15px;
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+  color: inherit !important;
+  cursor: pointer;
+  border: 1.5px solid currentColor !important;
+  border-radius: 3px !important;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 1;
+  box-shadow: none !important;
+  touch-action: manipulation;
+}
+.fc .fc-event .leo-calendar-task-toggle:hover {
+  background: #ffffff38 !important;
+  transform: none !important;
+}
+.fc .fc-event .leo-calendar-task-toggle.is-done {
+  background: #fff !important;
+  color: #1967d2 !important;
+  border-color: #fff !important;
+}
+.fc .fc-event .leo-calendar-task-toggle:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.fc .fc-timegrid-event:has(.leo-calendar-task-toggle) .calendar-entry-content {
+  display: grid !important;
+  grid-template-columns: 15px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: start !important;
+  gap: 2px 6px !important;
+}
+.fc .fc-timegrid-event .leo-calendar-task-toggle {
+  grid-column: 1;
+  grid-row: 1;
+}
+.fc .fc-timegrid-event:has(.leo-calendar-task-toggle) .calendar-entry-title {
+  grid-column: 2;
+  grid-row: 1;
+}
+.fc .fc-timegrid-event:has(.leo-calendar-task-toggle) .calendar-entry-time {
+  grid-column: 2;
+  grid-row: 2;
+}
+.fc .task-completed .calendar-entry-title {
+  text-decoration: line-through !important;
+  text-decoration-thickness: 1px;
+}
+.fc .task-completed {
+  opacity: 1 !important;
+}
+/* Solid, contrasting, category-based colors. */
+.fc .fc-event[data-leo-color='fixed'] {
+  background-color: #188038 !important;
+  border-color: #188038 !important;
+}
+.fc .fc-event[data-leo-color='urgent'] {
+  background-color: #d93025 !important;
+  border-color: #d93025 !important;
+}
+.fc .fc-event[data-leo-color='fun'] {
+  background-color: #fbbc04 !important;
+  border-color: #fbbc04 !important;
+}
+.fc .fc-event[data-leo-color='routine'] {
+  background-color: #9334e6 !important;
+  border-color: #9334e6 !important;
+}
+.fc .fc-event[data-leo-color='default'] {
+  background-color: #1a73e8 !important;
+  border-color: #1a73e8 !important;
+}
+.fc .fc-event[data-leo-color='fun'] .fc-event-main {
+  color: #202124 !important;
+}
+.fc .fc-event[data-leo-color='fun'] .leo-calendar-task-toggle.is-done {
+  color: #806000 !important;
+}
+.fc .fc-event[data-leo-color='urgent'] .leo-calendar-task-toggle.is-done {
+  color: #b3261e !important;
+}
+.fc .fc-event[data-leo-color='routine'] .leo-calendar-task-toggle.is-done {
+  color: #681da8 !important;
+}
+@media (max-width: 800px) {
+  .app-shell {
+    grid-template-columns: 205px minmax(0, 1fr);
+  }
+  .calendar-main {
+    padding: 8px !important;
+  }
+  .fc .fc-header-toolbar {
+    gap: 5px;
+    margin-bottom: 8px !important;
+  }
+  .fc .fc-toolbar-title {
+    font-size: 17px !important;
+  }
+  .fc .fc-button-primary {
+    padding: 6px !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fc .fc-event,
+  .fc .fc-event:hover,
+  .fc .fc-event:focus-visible {
+    transition: none !important;
+  }
+}
+
+/* Remove the remaining oversized DayFront chrome rather than stacking cards. */
+.fc {
+  background: #fff !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  min-height: 0 !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+.sidebar .brand {
+  height: auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 3px 8px 16px !important;
+  margin: 0 0 8px !important;
+  border-bottom: 1px solid #eef0f3;
+}
+.sidebar .brand .mark {
+  width: 40px !important;
+  height: 40px !important;
+  min-width: 40px !important;
+  object-fit: contain;
+}
+.sidebar .brand h1 {
+  font-size: 19px !important;
+  letter-spacing: -0.02em !important;
+  font-weight: 600 !important;
+  margin: 0 !important;
+}
+.sidebar .brand .eyebrow {
+  display: none !important;
+}
+.sidebar .task-overview {
+  background: #f8fafd !important;
+  background-image: none !important;
+  border: 1px solid #e4e8ef !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  padding: 11px 13px !important;
+}
+.sidebar .task-group {
+  background: #fff !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  border-bottom: 1px solid #eef0f3 !important;
+  box-shadow: none !important;
+}
+.sidebar .task-action.primary-task-action {
+  background: #e8f0fe !important;
+  background-image: none !important;
+  color: #1967d2 !important;
+  border: 0 !important;
+  border-radius: 22px !important;
+  box-shadow: none !important;
+  font-weight: 600 !important;
+}
+.sidebar .task-action.primary-task-action:hover {
+  background: #d2e3fc !important;
+}
+.sidebar .picker-summary {
+  font-weight: 600;
+  letter-spacing: 0.015em;
+}
+.fc .fc-button-primary {
+  background-image: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+.fc .fc-toolbar-chunk {
+  background-image: none !important;
+}
+
+/* Short events and a scrollable sidebar: no chopped text or inaccessible tasks. */
+.fc .fc-timegrid-event.leo-compact-event .fc-event-main {
+  padding: 4px 6px !important;
+}
+.fc .fc-timegrid-event.leo-compact-event .calendar-entry-content {
+  gap: 2px !important;
+}
+.fc .fc-timegrid-event.leo-compact-event .calendar-entry-title {
+  display: block !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  -webkit-line-clamp: unset !important;
+  line-clamp: unset !important;
+  max-width: 100%;
+}
+.fc .fc-timegrid-event.leo-compact-event .calendar-entry-time {
+  font-size: 10px !important;
+}
+.sidebar {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+}
+.sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: #dadce0;
+  border-radius: 6px;
+}
+
+/* Final polish: replace thick toolbar pills and remove decorative purple glow. */
+.sidebar:before,
+.sidebar::before {
+  display: none !important;
+}
+.fc .fc-button-group {
+  display: inline-flex !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+.fc .fc-button-group .fc-button-primary {
+  border-radius: 0 !important;
+  min-height: 34px !important;
+  margin-left: -1px !important;
+  box-shadow: none !important;
+}
+.fc .fc-button-group .fc-button-primary:first-child {
+  border-radius: 6px 0 0 6px !important;
+  margin-left: 0 !important;
+}
+.fc .fc-button-group .fc-button-primary:last-child {
+  border-radius: 0 6px 6px 0 !important;
+}
+.fc .fc-button-group .fc-button-primary:only-child {
+  border-radius: 6px !important;
+}
+
+/* SL Calendar v4 uploaded-logo appearance correction */
+.sidebar .brand img.mark,
+.login-card img[src*='sl-calendar-icon'] {
+  filter: none !important;
+  -webkit-filter: none !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+  mix-blend-mode: normal !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+.sidebar .brand img.mark {
+  width: 40px !important;
+  height: 40px !important;
+  object-fit: contain !important;
+  flex: 0 0 40px;
+}
+
+/* Past event styling; completed tasks are absent from the calendar. */
+.fc .fc-event.leo-past-event {
+  filter: grayscale(1);
+  opacity: 0.4;
+}
+.fc .fc-timegrid-now-indicator-line {
+  border-top-width: 2px !important;
+  border-color: #ef4444 !important;
+  z-index: 12 !important;
+}
+.fc .fc-timegrid-now-indicator-arrow {
+  border-top-color: #ef4444 !important;
+  border-bottom-color: transparent !important;
+}
+
+/* SL Calendar adaptive dark scheme. Light mode keeps existing values intact. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark !important;
+    --canvas: #13161b;
+    --canvas-raised: #1b1f26;
+    --surface: #1b1f26;
+    --surface-solid: #1b1f26;
+    --surface-hover: #272c35;
+    --surface-strong: #303a50;
+    --panel: #171a20;
+    --panel-soft: #20252d;
+    --line: #353b45;
+    --line-strong: #444b57;
+    --text: #e8eaed;
+    --text-soft: #b0b6c0;
+    --muted: #a3abb7;
+    --accent: #8ab4f8;
+    --accent-strong: #8ab4f8;
+    --accent-cool: #8ab4f8;
+    --accent-ink: #111827;
+    --today-bg: #25344c;
+    --today-ring: #4d6383;
+    --shadow-sm: none;
+    --shadow-lg: 0 8px 28px #0007;
+    background: #13161b !important;
+    color: #e8eaed !important;
+  }
+  html,
+  body,
+  .app-shell,
+  .calendar-main,
+  .calendar-main.calendar-is-fullscreen,
+  .sidebar,
+  .fc,
+  .fc .fc-scrollgrid,
+  .fc .fc-scrollgrid-section > *,
+  .fc .fc-col-header-cell {
+    background: #13161b !important;
+    color: #e8eaed !important;
+  }
+  .sidebar {
+    border-right-color: #353b45 !important;
+  }
+  .sidebar .brand {
+    border-bottom-color: #353b45 !important;
+  }
+  .sidebar .task-group {
+    background: #171a20 !important;
+    border-bottom-color: #353b45 !important;
+  }
+  .sidebar .task-overview {
+    background: #20252d !important;
+    border-color: #353b45 !important;
+  }
+  .sidebar .task-action.primary-task-action {
+    background: #273b5a !important;
+    color: #a9cbff !important;
+  }
+  .sidebar .task-action.primary-task-action:hover {
+    background: #344d70 !important;
+  }
+  .sidebar::-webkit-scrollbar-thumb {
+    background: #444b57 !important;
+  }
+  .fc {
+    --fc-border-color: #353b45;
+    --fc-page-bg-color: #13161b;
+    --fc-neutral-bg-color: #20252d;
+    --fc-today-bg-color: #243247;
+    --fc-list-event-hover-bg-color: #272c35;
+    --fc-highlight-color: #2b405c !important;
+  }
+  .fc .fc-toolbar-title {
+    color: #e8eaed !important;
+  }
+  .fc .fc-button-primary {
+    background: #20252d !important;
+    color: #d9dee7 !important;
+    border-color: #404651 !important;
+  }
+  .fc .fc-button-primary:hover {
+    background: #303641 !important;
+  }
+  .fc .fc-button-primary.fc-button-active {
+    background: #31476a !important;
+    color: #cfe2ff !important;
+    border-color: #607ca4 !important;
+  }
+  .fc .fc-col-header-cell-cushion,
+  .fc .fc-timegrid-slot-label-cushion,
+  .fc .fc-timegrid-axis-cushion {
+    color: #aeb6c2 !important;
+  }
+  .fc .fc-daygrid-day-number {
+    color: #e0e4ea !important;
+  }
+  .fc .fc-scrollgrid {
+    border-color: #353b45 !important;
+  }
+  .fc .fc-timegrid-slot-minor {
+    border-top-color: #242a31 !important;
+  }
+  .fc .fc-day-today {
+    background: #2432478c !important;
+  }
+  .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+    background: #8ab4f8 !important;
+    color: #111827 !important;
+  }
+  .sidebar .brand img.mark,
+  .login-card img[src*='sl-calendar-icon'] {
+    background: transparent !important;
+  }
+  .fc .fc-list,
+  .fc .fc-list-table,
+  .fc .fc-list-day-cushion,
+  .fc .fc-list-event td {
+    background: #171a20 !important;
+    color: #e8eaed !important;
+  }
+  .fc .fc-list-event:hover td {
+    background: #272c35 !important;
+  }
+  .fc .fc-list-day-text,
+  .fc .fc-list-day-side-text {
+    color: #b5c3d9 !important;
+  }
+  input,
+  textarea,
+  select {
+    color-scheme: dark;
+  }
+}
+.fc .fc-event.leo-past-event,
+.fc .fc-event.leo-past-event:hover {
+  filter: grayscale(1) !important;
+  opacity: 0.42 !important;
+}
+
+/* SL Calendar exact user-chosen icon v6: responsive light/dark branding */
+.sidebar .brand img.mark,
+.login-card img[src*='sl-calendar-icon'] {
+  content: url('/sl-calendar-logo-light.svg?v=sl-icon-v6') !important;
+  background: transparent !important;
+  filter: none !important;
+  object-fit: contain !important;
+  border-radius: 0 !important;
+}
+@media (prefers-color-scheme: dark) {
+  .sidebar .brand img.mark,
+  .login-card img[src*='sl-calendar-icon'] {
+    content: url('/sl-calendar-logo-dark.svg?v=sl-icon-v6') !important;
+  }
+}
+:root[data-theme='dark'] .sidebar .brand img.mark,
+:root[data-theme='dark'] .login-card img[src*='sl-calendar-icon'] {
+  content: url('/sl-calendar-logo-dark.svg?v=sl-icon-v6') !important;
+}
+:root[data-theme='light'] .sidebar .brand img.mark,
+:root[data-theme='light'] .login-card img[src*='sl-calendar-icon'] {
+  content: url('/sl-calendar-logo-light.svg?v=sl-icon-v6') !important;
+}
+
+/* SL Calendar per-entry colors: compact and accessible in light and dark themes. */
+.sl-color-field {
+  border: 0;
+  margin: 6px 0 10px;
+  padding: 0;
+  min-width: 0;
+}
+.sl-color-field legend {
+  font-size: 0.86rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding: 0;
+}
+.sl-colors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px 14px;
+}
+.sl-color-option {
+  display: inline-flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  min-width: 42px;
+  margin: 0 !important;
+}
+.sl-color-option input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+.sl-color-dot {
+  display: grid;
+  place-items: center;
+  inline-size: 27px;
+  block-size: 27px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+.sl-color-option:has(input:checked) .sl-color-dot {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.sl-color-option:has(input:focus-visible) .sl-color-dot {
+  outline: 3px solid #1c85ff;
+  outline-offset: 3px;
+}
+.sl-color-option input[value='#F6BF26'] + .sl-color-dot,
+.sl-color-option input[value='#33B679'] + .sl-color-dot {
+  color: #211d1a;
+}
+.fc .fc-event.sl-palette-default {
+  background-color: #5287e9 !important;
+  border-color: #366dd0 !important;
+}
+.fc .fc-event.sl-palette-fixed {
+  background-color: #258b59 !important;
+  border-color: #176a43 !important;
+}
+.fc .fc-event.sl-palette-urgent {
+  background-color: #d84553 !important;
+  border-color: #b52b3c !important;
+}
+.fc .fc-event.sl-palette-fun {
+  background-color: #f1c64f !important;
+  border-color: #cd9e21 !important;
+}
+.fc .fc-event.sl-palette-routine {
+  background-color: #8664c9 !important;
+  border-color: #6545ab !important;
+}
+.fc .fc-event[class*='sl-palette-'] .fc-event-main {
+  color: #fff !important;
+}
+.fc .fc-event.sl-palette-fun .fc-event-main {
+  color: #30260b !important;
+}
+
+.sl-colors {
+  gap: 10px 9px;
+  max-width: 490px;
+}
+.sl-color-option {
+  min-width: 55px;
+  font-size: 10px;
+}
+.sl-color-dot {
+  inline-size: 29px;
+  block-size: 29px;
+}
+
+/* Collapsible Subtasks editor in Event / Task dialogs */
+.sl-subtasks-fold {
+  margin: 12px 0;
+  border: 1px solid var(--border, #d0d6dd);
+  border-radius: 10px;
+  padding: 0 12px 10px;
+}
+.sl-subtasks-fold:not([open]) {
+  padding-bottom: 0;
+}
+.sl-subtasks-fold > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  padding: 12px 2px;
+  list-style: none;
+  user-select: none;
+}
+.sl-subtasks-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.sl-subtasks-fold > summary::after {
+  content: '⌄';
+  margin-left: auto;
+  font-size: 20px;
+  line-height: 1;
+  opacity: 0.65;
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+}
+.sl-subtasks-fold[open] > summary::after {
+  transform: rotate(0deg);
+}
+.sl-subtasks-fold > summary:focus-visible {
+  outline: 2px solid #039be5;
+  outline-offset: 2px;
+  border-radius: 5px;
+}
+.sl-subtasks-fold > summary h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.sl-subtasks-fold > summary span {
+  color: inherit;
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+/* Compact single-line Google-color selector */
+.sl-color-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 12px;
+  position: relative;
+  min-width: 0;
+}
+.sl-color-label {
+  flex: 0 0 67px;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+.sl-color-dropdown {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 320px;
+}
+.sl-color-dropdown > summary {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border, #a2a5ab);
+  background: var(--surface, transparent);
+  border-radius: 7px;
+  list-style: none;
+  user-select: none;
+  font-size: 13px;
+}
+.sl-color-dropdown > summary::-webkit-details-marker {
+  display: none;
+}
+.sl-color-dropdown > summary:focus-visible {
+  outline: 2px solid #039be5;
+  outline-offset: 2px;
+}
+.sl-color-small-dot {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+  border: 1px solid rgba(120, 120, 120, 0.2);
+}
+.sl-color-current-name {
+  flex: 1;
+}
+.sl-color-chevron {
+  opacity: 0.75;
+  transform: rotate(0deg);
+  font-size: 17px;
+}
+.sl-color-dropdown[open] .sl-color-chevron {
+  transform: rotate(180deg);
+}
+.sl-color-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  z-index: 110;
+  padding: 4px;
+  border: 1px solid var(--border, #aaa);
+  background: var(--surface, #fff);
+  color: var(--text, #222);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px #0003;
+  max-height: 250px;
+  overflow-y: auto;
+}
+.sl-color-choice {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 5px;
+  text-align: left;
+  cursor: pointer;
+}
+.sl-color-choice:hover,
+.sl-color-choice:focus-visible {
+  background: rgba(120, 140, 155, 0.14);
+}
+.sl-color-choice .sl-color-check {
+  margin-left: auto;
+}
+:root[data-theme='dark'] .sl-color-menu {
+  background: #24242b;
+  color: #f2f2f4;
+  border-color: #55545c;
+}
+
+/* Optional task release gate: Due is the primary field, Start is subordinate */
+.sl-start-fold {
+  margin: 8px 0 14px;
+  border: 1px solid var(--border, #d0d6dd);
+  border-radius: 9px;
+  padding: 0 12px;
+}
+.sl-start-fold > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 2px;
+  cursor: pointer;
+  font-size: 0.87rem;
+  font-weight: 600;
+  user-select: none;
+}
+.sl-start-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.sl-start-fold > summary::after {
+  content: '⌄';
+  margin-left: auto;
+  opacity: 0.65;
+  transform: rotate(-90deg);
+  font-size: 19px;
+  line-height: 1;
+}
+.sl-start-fold[open] > summary::after {
+  transform: rotate(0deg);
+}
+.sl-start-fold > summary:focus-visible {
+  outline: 2px solid #039be5;
+  outline-offset: 2px;
+}
+.sl-start-hint {
+  font-weight: 400;
+  opacity: 0.7;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 65%;
+}
+.sl-start-body {
+  padding: 2px 0 13px;
+  display: grid;
+  gap: 10px;
+}
+.sl-start-body > label {
+  display: grid;
+  gap: 6px;
+}
+.sl-start-body .date-time-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}

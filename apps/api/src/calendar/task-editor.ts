@@ -35,6 +35,23 @@ function apply(component: ICAL.Component, input: TaskMutation): void {
   else component.removeAllProperties('description');
   component.updatePropertyWithValue('status', input.status.toUpperCase());
   component.updatePropertyWithValue('priority', input.priority);
+  if (input.category !== undefined)
+    component.updatePropertyWithValue('x-leo-category', input.category);
+  if (input.color !== undefined)
+    component.updatePropertyWithValue('x-leo-color', input.color);
+  if (input.startGate !== undefined)
+    component.updatePropertyWithValue(
+      'x-leo-start-gate',
+      String(input.startGate),
+    );
+  if (input.startTaskUid !== undefined) {
+    if (input.startTaskUid)
+      component.updatePropertyWithValue(
+        'x-leo-start-task-uid',
+        input.startTaskUid,
+      );
+    else component.removeAllProperties('x-leo-start-task-uid');
+  }
   if (input.status === 'completed') {
     component.updatePropertyWithValue('completed', utcNow());
     component.updatePropertyWithValue('percent-complete', 100);

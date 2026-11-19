@@ -90,6 +90,10 @@ function mappedTask(
   const rule = seriesRule ?? recurrenceRule(component);
   const identity = recurrenceId?.toString() ?? uid;
   const description = textValue(component, 'description');
+  const category = textValue(component, 'x-leo-category');
+  const color = textValue(component, 'x-leo-color');
+  const startTaskUid = textValue(component, 'x-leo-start-task-uid');
+  const startGateFlag = textValue(component, 'x-leo-start-gate');
   const relationships = taskRelationships(component);
   return {
     id: createHash('sha256')
@@ -104,6 +108,15 @@ function mappedTask(
     ...(timeValue(dueValue) ? { due: timeValue(dueValue) } : {}),
     allDay: Boolean(startValue?.isDate || dueValue?.isDate),
     ...(description ? { description } : {}),
+    ...(category &&
+    ['fixed', 'urgent', 'fun', 'routine', 'default'].includes(category)
+      ? { category: category as CalendarTask['category'] }
+      : {}),
+    ...(color && /^#[0-9a-fA-F]{6}$/.test(color) ? { color } : {}),
+    ...(startTaskUid ? { startTaskUid } : {}),
+    ...(startGateFlag === 'true' || startGateFlag === 'false'
+      ? { startGate: startGateFlag === 'true' }
+      : {}),
     status,
     completed: status === 'completed' || Boolean(completedAt),
     ...(completedAt ? { completedAt } : {}),

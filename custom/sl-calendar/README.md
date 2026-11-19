@@ -1,13 +1,12 @@
 # SL Calendar custom deployment snapshot
 
-This directory preserves the self-hosted **SL Calendar** customizations based on
-[DayFront](https://github.com/Erik-A-Smith/DayFront). It is a **snapshot of the
-customized running deployment**, not a rebase of all local changes into the
-upstream TypeScript source tree.
+This directory is an **archived snapshot** of the SL Calendar deployment
+dated 2026-11-18, kept for comparing behavior and rollback. It is not the
+source of truth.
 
-The fork's upstream DayFront source, history, and other feature branches remain
-unchanged. These files can be used to audit the differences and eventually port
-features to the upstream source code.
+**Maintained code is now under apps/web/src, apps/api/src and
+packages/shared/src.** See [native TypeScript source and build
+instructions](../../docs/sl-calendar-source.md).
 
 ## Layout
 
@@ -48,17 +47,17 @@ node --check custom/sl-calendar/live/frontend-calendar-v2.js
 node custom/sl-calendar/src/test-sl-history.cjs
 ```
 
-The front-end bundle is generated/minified JavaScript, *not* a standalone
-source-level build of all local changes. Do not use `pnpm build` in the upstream
-root expecting it to recreate the archived custom UI: a full source-level
-migration would be needed. Deploying these assets also depends on the existing
-site's reverse-proxy routing. This repository does not contain its live nginx
-configuration, authentication credentials, CalDAV data, or TLS private keys.
+The legacy minified frontend and locally customized API bundle remain
+archived, but the current fork builds the maintained SL Calendar from
+TypeScript source using pnpm build and pnpm verify. The old reverse-proxy
+deployment still serves its previous JS assets until explicitly migrated
+to the new build. No live credentials, CalDAV records or TLS keys are
+included here.
 
 ## Upstream relationship
 
 - `origin`: `LeonardNJU/DayFront` (this fork)
 - `upstream`: `Erik-A-Smith/DayFront`
 
-Changes are isolated under `custom/sl-calendar/` to avoid pretending that
-archived generated artifacts are drop-in source replacements.
+New features should be made in the TypeScript source tree. This
+custom directory contains historical assets and tools for reference.

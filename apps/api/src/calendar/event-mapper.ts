@@ -54,6 +54,12 @@ function mappedEvent(
     .digest('base64url')
     .slice(0, 30);
   const rule = recurrenceRule(seriesEvent);
+  const category: unknown =
+    event.component.getFirstPropertyValue('x-leo-category') ??
+    seriesEvent.component.getFirstPropertyValue('x-leo-category');
+  const color: unknown =
+    event.component.getFirstPropertyValue('x-leo-color') ??
+    seriesEvent.component.getFirstPropertyValue('x-leo-color');
   return {
     id,
     resourceId,
@@ -65,6 +71,13 @@ function mappedEvent(
     allDay: start.isDate,
     ...(event.description ? { description: event.description } : {}),
     ...(event.location ? { location: event.location } : {}),
+    ...(typeof category === 'string' &&
+    ['fixed', 'urgent', 'fun', 'routine', 'default'].includes(category)
+      ? { category: category as CalendarEvent['category'] }
+      : {}),
+    ...(typeof color === 'string' && /^#[0-9a-fA-F]{6}$/.test(color)
+      ? { color }
+      : {}),
     version: resource.etag,
     entryType: 'event',
     recurring: seriesEvent.isRecurring() || event.isRecurrenceException(),

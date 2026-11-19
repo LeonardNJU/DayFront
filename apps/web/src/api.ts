@@ -16,6 +16,7 @@ import {
   type HealthResponse,
 } from '@dayfront/shared';
 
+import { calendarHistory } from './change-history.js';
 export const authenticationRequiredEvent = 'dayfront:authentication-required';
 
 function errorCode(body: unknown): string | undefined {
@@ -119,7 +120,11 @@ export async function searchEvents(
     `/api/v1/events/search?${parameters}`,
     signal ? { signal } : undefined,
   );
-  return calendarEventsResponseSchema.parse(await json(response)).data;
+  return [
+    ...calendarHistory.observe(
+      calendarEventsResponseSchema.parse(await json(response)).data,
+    ),
+  ];
 }
 
 export async function createCalendar(
@@ -171,7 +176,11 @@ export async function getEvents(range: EventRange): Promise<CalendarEvent[]> {
   });
   range.calendarIds.forEach((id) => query.append('calendarId', id));
   const response = await fetch(`/api/v1/events?${query.toString()}`);
-  return calendarEventsResponseSchema.parse(await json(response)).data;
+  return [
+    ...calendarHistory.observe(
+      calendarEventsResponseSchema.parse(await json(response)).data,
+    ),
+  ];
 }
 
 export async function getTasks(range: EventRange): Promise<CalendarTask[]> {
@@ -182,7 +191,11 @@ export async function getTasks(range: EventRange): Promise<CalendarTask[]> {
   });
   range.calendarIds.forEach((id) => query.append('calendarId', id));
   const response = await fetch(`/api/v1/tasks?${query.toString()}`);
-  return calendarTasksResponseSchema.parse(await json(response)).data;
+  return [
+    ...calendarHistory.observe(
+      calendarTasksResponseSchema.parse(await json(response)).data,
+    ),
+  ];
 }
 
 export async function getTaskList(
@@ -196,7 +209,11 @@ export async function getTaskList(
     `/api/v1/tasks?${query.toString()}`,
     signal ? { signal } : undefined,
   );
-  return calendarTasksResponseSchema.parse(await json(response)).data;
+  return [
+    ...calendarHistory.observe(
+      calendarTasksResponseSchema.parse(await json(response)).data,
+    ),
+  ];
 }
 
 export async function createTask(input: TaskMutation): Promise<CalendarTask> {
@@ -208,7 +225,9 @@ export async function createTask(input: TaskMutation): Promise<CalendarTask> {
       body: JSON.stringify(input),
     },
   );
-  return calendarTaskResponseSchema.parse(await json(response)).data;
+  const result = calendarTaskResponseSchema.parse(await json(response)).data;
+  calendarHistory.created('task', input, result);
+  return result;
 }
 
 export async function updateTask(
@@ -216,6 +235,9 @@ export async function updateTask(
   version: string,
   input: TaskMutation,
 ): Promise<CalendarTask> {
+  const before = await calendarHistory
+    .before('task', resourceId, input.calendarId, input)
+    .catch(() => undefined);
   const response = await fetch(
     `/api/v1/tasks/${encodeURIComponent(resourceId)}`,
     {
@@ -224,7 +246,9 @@ export async function updateTask(
       body: JSON.stringify(input),
     },
   );
-  return calendarTaskResponseSchema.parse(await json(response)).data;
+  const result = calendarTaskResponseSchema.parse(await json(response)).data;
+  calendarHistory.changed('task', before, input, result);
+  return result;
 }
 
 export async function deleteTask(
@@ -232,6 +256,12 @@ export async function deleteTask(
   version: string,
   occurrence?: { recurrenceId: string },
 ): Promise<void> {
+  const before =
+    !occurrence && !calendarHistory.busy
+      ? await calendarHistory
+          .before('task', resourceId, '')
+          .catch(() => undefined)
+      : undefined;
   const query = occurrence
     ? `?${new URLSearchParams({ scope: 'occurrence', recurrenceId: occurrence.recurrenceId }).toString()}`
     : '';
@@ -243,6 +273,7 @@ export async function deleteTask(
     },
   );
   if (!response.ok) await json(response);
+  if (!calendarHistory.busy) calendarHistory.deleted('task', before);
 }
 
 export async function createEvent(
@@ -256,7 +287,9 @@ export async function createEvent(
       body: JSON.stringify(input),
     },
   );
-  return calendarEventResponseSchema.parse(await json(response)).data;
+  const result = calendarEventResponseSchema.parse(await json(response)).data;
+  calendarHistory.created('event', input, result);
+  return result;
 }
 
 export async function updateEvent(
@@ -264,6 +297,9 @@ export async function updateEvent(
   version: string,
   input: EventMutation,
 ): Promise<CalendarEvent> {
+  const before = await calendarHistory
+    .before('event', resourceId, input.calendarId, input)
+    .catch(() => undefined);
   const response = await fetch(
     `/api/v1/events/${encodeURIComponent(resourceId)}`,
     {
@@ -272,7 +308,9 @@ export async function updateEvent(
       body: JSON.stringify(input),
     },
   );
-  return calendarEventResponseSchema.parse(await json(response)).data;
+  const result = calendarEventResponseSchema.parse(await json(response)).data;
+  calendarHistory.changed('event', before, input, result);
+  return result;
 }
 
 export async function deleteEvent(
@@ -280,6 +318,12 @@ export async function deleteEvent(
   version: string,
   occurrence?: { recurrenceId: string },
 ): Promise<void> {
+  const before =
+    !occurrence && !calendarHistory.busy
+      ? await calendarHistory
+          .before('event', resourceId, '')
+          .catch(() => undefined)
+      : undefined;
   const query = occurrence
     ? `?${new URLSearchParams({
         scope: 'occurrence',
@@ -294,4 +338,13 @@ export async function deleteEvent(
     },
   );
   if (!response.ok) await json(response);
+  if (!calendarHistory.busy) calendarHistory.deleted('event', before);
 }
+calendarHistory.register({
+  createTask,
+  updateTask,
+  deleteTask,
+  createEvent,
+  updateEvent,
+  deleteEvent,
+});

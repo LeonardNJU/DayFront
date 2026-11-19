@@ -31,6 +31,42 @@ describe('task editing', () => {
     expect(source).not.toContain('X-VOBJ-FLOATINGTIME-ALLOWED');
   });
 
+  it('round-trips custom color, category and prerequisite start conditions', () => {
+    const source = createTaskData({
+      ...input,
+      color: '#D50000',
+      category: 'urgent',
+      startTaskUid: 'finish-proposal',
+      startGate: false,
+    });
+    expect(source).toContain('X-LEO-COLOR:#D50000');
+    expect(source).toContain('X-LEO-CATEGORY:urgent');
+    expect(source).toContain('X-LEO-START-TASK-UID:finish-proposal');
+    expect(source).toContain('X-LEO-START-GATE:false');
+
+    const task = mapTaskResource(
+      {
+        url: 'https://caldav.test/task.ics',
+        etag: '"v1"',
+        calendarData: source,
+      },
+      'personal',
+    )[0];
+    expect(task).toMatchObject({
+      color: '#D50000',
+      category: 'urgent',
+      startTaskUid: 'finish-proposal',
+      startGate: false,
+    });
+    const updated = updateTaskData(source, {
+      ...input,
+      startTaskUid: null,
+      startGate: true,
+    });
+    expect(updated).not.toContain('X-LEO-START-TASK-UID');
+    expect(updated).toContain('X-LEO-START-GATE:true');
+  });
+
   it('anchors a due-only recurring task at its due date', () => {
     const source = createTaskData({
       ...input,

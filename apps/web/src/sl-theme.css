@@ -1,0 +1,37 @@
+/* Leo DayFront calendar layout/color overrides.
+   TimeGrid harness already has the duration; FullCalendar's timed event must fill it. */
+.fc .fc-timegrid-event {
+  position: absolute;
+}
+
+/* Semantic categories: time-fixed coursework / TA lab; urgent work; recreation;
+   routine daily tasks; default items. Override per-calendar inline colors. */
+.fc .fc-event[data-leo-color='fixed'] {
+  background-color: #258b59 !important;
+  border-color: #176a43 !important;
+}
+.fc .fc-event[data-leo-color='urgent'] {
+  background-color: #d84553 !important;
+  border-color: #b52b3c !important;
+}
+.fc .fc-event[data-leo-color='fun'] {
+  background-color: #f1c64f !important;
+  border-color: #cd9e21 !important;
+}
+.fc .fc-event[data-leo-color='routine'] {
+  background-color: #8664c9 !important;
+  border-color: #6545ab !important;
+}
+.fc .fc-event[data-leo-color='default'] {
+  background-color: #5287e9 !important;
+  border-color: #366dd0 !important;
+}
+.fc .fc-event[data-leo-color] .fc-event-main {
+  color: #fff !important;
+}
+.fc .fc-event[data-leo-color='fun'] .fc-event-main {
+  color: #30260b !important;
+}
+.fc .fc-event[data-leo-color] .calendar-entry-icon {
+  border-color: currentColor;
+}

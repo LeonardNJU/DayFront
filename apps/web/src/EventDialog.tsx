@@ -2,6 +2,8 @@ import type { Calendar, CalendarEvent, EventMutation } from '@dayfront/shared';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { ClockInput, type TimeFormat } from './ClockInput.js';
+import { ColorPicker } from './ColorPicker.js';
+import { DEFAULT_EVENT_COLOR } from './palette.js';
 import { RecurrenceActionDialog } from './RecurrenceActionDialog.js';
 
 interface EventDialogProps {
@@ -104,11 +106,12 @@ export function EventDialog({
         ? shiftDate(event.end, -1)
         : localDateTime(event.end)
       : initialDate && !initialAllDay
-        ? oneHourAfter(initialDate)
+        ? (initialEnd?.slice(0, 16) ?? oneHourAfter(initialDate))
         : (initialEnd?.slice(0, 10) ?? initialDate?.slice(0, 10) ?? ''),
   );
   const [description, setDescription] = useState(event?.description ?? '');
   const [location, setLocation] = useState(event?.location ?? '');
+  const [color, setColor] = useState(event?.color ?? DEFAULT_EVENT_COLOR);
   const [recurrence, setRecurrence] = useState(
     recurrenceChoice(event?.recurrenceRule),
   );
@@ -155,6 +158,7 @@ export function EventDialog({
             }
           : {}),
         allDay,
+        color,
         ...(description ? { description } : {}),
         ...(location ? { location } : {}),
         recurrenceRule:
@@ -236,25 +240,28 @@ export function EventDialog({
               required
             />
           </label>
-          <label>
-            Calendar
-            <select
-              aria-label="Calendar"
-              value={calendarId}
-              onChange={(change) => setCalendarId(change.target.value)}
-            >
-              {calendars.map((calendar) => (
-                <option value={calendar.id} key={calendar.id}>
-                  {calendar.displayName}
-                </option>
-              ))}
-            </select>
-            {event?.recurring && event.recurrenceId && (
-              <span className="field-hint">
-                Changing calendars moves the entire recurring series.
-              </span>
-            )}
-          </label>
+          {calendars.length > 1 && (
+            <label>
+              Calendar
+              <select
+                aria-label="Calendar"
+                value={calendarId}
+                onChange={(change) => setCalendarId(change.target.value)}
+              >
+                {calendars.map((calendar) => (
+                  <option value={calendar.id} key={calendar.id}>
+                    {calendar.displayName}
+                  </option>
+                ))}
+              </select>
+              {event?.recurring && event.recurrenceId && (
+                <span className="field-hint">
+                  Changing calendars moves the entire recurring series.
+                </span>
+              )}
+            </label>
+          )}
+          <ColorPicker value={color} onChange={setColor} />
           <label className="check-field">
             <input
               type="checkbox"

@@ -6,7 +6,14 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      'custom/sl-calendar/live/**',
+      'custom/sl-calendar/src/*.js',
+      'custom/sl-calendar/src/*.cjs',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,

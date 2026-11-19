@@ -64,6 +64,10 @@ function apply(event: ICAL.Event, input: EventMutation): void {
   } else if (input.recurrenceRule === null) {
     event.component.removeAllProperties('rrule');
   }
+  if (input.category !== undefined)
+    event.component.updatePropertyWithValue('x-leo-category', input.category);
+  if (input.color !== undefined)
+    event.component.updatePropertyWithValue('x-leo-color', input.color);
   if (!event.component.hasProperty('status'))
     event.component.updatePropertyWithValue('status', 'CONFIRMED');
   event.component.updatePropertyWithValue('dtstamp', utcNow());

@@ -537,18 +537,13 @@ describe('DayFront calendar', () => {
       await screen.findByRole('button', { name: 'Show sidebar' }),
     );
     expect(
-      await screen.findByRole('heading', { name: 'DayFront' }),
+      await screen.findByRole('heading', { name: 'SL Calendar' }),
     ).toBeInTheDocument();
-    expect(await screen.findByText('Personal')).toBeInTheDocument();
     expect(new URL(window.location.href).searchParams.get('date')).toBe(
       '2026-03-12',
     );
-    const calendarSummary = screen.getByText('Calendars').closest('summary');
-    expect(screen.getByText('Personal')).not.toBeVisible();
-    fireEvent.click(calendarSummary!);
-    expect(screen.getByText('Personal')).toBeVisible();
-    fireEvent.click(calendarSummary!);
-    expect(screen.getByText('Personal')).not.toBeVisible();
+    // SL Calendar hides the calendar picker when there is only one calendar.
+    expect(screen.queryByText('Personal')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'New task' })).toBeVisible();
     const taskSummary = screen.getByText('Tasks').closest('summary');
     fireEvent.click(taskSummary!);
@@ -998,8 +993,8 @@ describe('DayFront calendar', () => {
       />,
     );
 
-    expect(screen.getByLabelText('Start date')).toHaveValue('2026-08-04');
-    expect(screen.getByLabelText('Due date')).toHaveValue('2026-08-06');
+    expect(screen.getByLabelText('Due date')).toHaveValue('2026-08-04');
+    expect(screen.queryByLabelText('Start date')).not.toBeInTheDocument();
   });
 
   it('keeps a valid event end even when the duration is under one hour', () => {
@@ -1062,6 +1057,10 @@ describe('DayFront calendar', () => {
       />,
     );
 
+    const startSummary = screen.getByText('Start', {
+      selector: 'summary span',
+    });
+    fireEvent.click(startSummary);
     fireEvent.change(screen.getByLabelText('Start date'), {
       target: { value: '2026-08-07' },
     });

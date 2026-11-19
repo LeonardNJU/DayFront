@@ -2,6 +2,12 @@ import type { Calendar, CalendarTask, TaskMutation } from '@dayfront/shared';
 import { useRef, useState, type FormEvent } from 'react';
 
 import { ClockInput, type TimeFormat } from './ClockInput.js';
+import { ColorPicker } from './ColorPicker.js';
+import {
+  defaultTaskColor,
+  DEFAULT_TASK_COLOR,
+  P1_TASK_COLOR,
+} from './palette.js';
 import { RecurrenceActionDialog } from './RecurrenceActionDialog.js';
 
 interface Props {
@@ -12,6 +18,7 @@ interface Props {
   initialEnd?: string;
   simple?: boolean;
   subtasks?: readonly CalendarTask[];
+  availableTasks?: readonly CalendarTask[];
   onCancel: () => void;
   onDelete?: (scope: 'series' | 'occurrence') => Promise<void>;
   onAddSubtask?: (title: string) => Promise<void>;
@@ -56,12 +63,6 @@ function withTime(value: string, time: string): string {
   return date && time ? `${date}T${time}` : value;
 }
 
-function shiftTime(value: string, hours: number): string {
-  const date = new Date(value.slice(0, 16));
-  date.setHours(date.getHours() + hours);
-  return localValue(date.toISOString(), false);
-}
-
 function ruleChoice(rule?: string) {
   if (!rule) return 'none';
   return (
@@ -77,6 +78,7 @@ export function TaskDialog({
   initialEnd,
   simple = false,
   subtasks = [],
+  availableTasks = [],
   onCancel,
   onDelete,
   onAddSubtask,
@@ -92,15 +94,13 @@ export function TaskDialog({
   const initialAllDay = task?.allDay ?? !initialDate?.includes('T');
   const [allDay, setAllDay] = useState(initialAllDay);
   const [start, setStart] = useState(
-    task?.start
-      ? localValue(task.start, task.allDay)
-      : (initialDate?.slice(0, initialAllDay ? 10 : 16) ?? ''),
+    task?.start ? localValue(task.start, task.allDay) : '',
   );
   const [due, setDue] = useState(
     task?.due
       ? localValue(task.due, task.allDay)
-      : (initialEnd?.slice(0, initialAllDay ? 10 : 16) ??
-          initialDate?.slice(0, initialAllDay ? 10 : 16) ??
+      : (initialDate?.slice(0, initialAllDay ? 10 : 16) ??
+          initialEnd?.slice(0, initialAllDay ? 10 : 16) ??
           ''),
   );
   const [description, setDescription] = useState(task?.description ?? '');
@@ -108,6 +108,45 @@ export function TaskDialog({
     task?.status ?? 'needs-action',
   );
   const [priority, setPriority] = useState(task?.priority ?? 0);
+  const [color, setColor] = useState(
+    defaultTaskColor(task?.priority ?? 0, task?.color),
+  );
+  const [manualColor, setManualColor] = useState(
+    Boolean(
+      task?.color &&
+      task.color.toUpperCase() !==
+        (task.priority === 1
+          ? P1_TASK_COLOR
+          : DEFAULT_TASK_COLOR
+        ).toUpperCase(),
+    ),
+  );
+  const [startMode, setStartMode] = useState<'none' | 'time' | 'task'>(
+    task?.startTaskUid
+      ? 'task'
+      : task?.startGate === false
+        ? 'none'
+        : task?.start
+          ? 'time'
+          : 'none',
+  );
+  const [startTaskUid, setStartTaskUid] = useState(task?.startTaskUid ?? '');
+  // Prevent direct/indirect dependency cycles, including when editing subtasks.
+  const prerequisiteOptions = availableTasks
+    .filter((candidate) => {
+      if (candidate.uid === task?.uid || !candidate.uid) return false;
+      let current: CalendarTask | undefined = candidate;
+      const visited = new Set<string>();
+      while (current?.startTaskUid && !visited.has(current.uid)) {
+        visited.add(current.uid);
+        if (current.startTaskUid === task?.uid) return false;
+        current = availableTasks.find(
+          (item) => item.uid === current?.startTaskUid,
+        );
+      }
+      return true;
+    })
+    .sort((a, b) => a.title.localeCompare(b.title));
   const [pendingAction, setPendingAction] = useState<'save' | 'delete'>();
   const initialRuleChoice = ruleChoice(task?.recurrenceRule);
   const [recurrence, setRecurrence] = useState(initialRuleChoice);
@@ -141,6 +180,10 @@ export function TaskDialog({
   }
 
   async function save(scope?: 'series' | 'occurrence') {
+    if (!simple && startMode === 'task' && !startTaskUid) {
+      setError('Choose the prerequisite task first.');
+      return;
+    }
     operation.current = true;
     setBusy(true);
     setError(undefined);
@@ -153,17 +196,21 @@ export function TaskDialog({
               allDay: true,
               status,
               priority: 0,
+              color,
               recurrenceRule: null,
             }
           : {
               calendarId,
               title,
-              ...(start ? { start: date(start) } : {}),
+              ...(startMode === 'time' && start ? { start: date(start) } : {}),
               ...(due ? { due: date(due) } : {}),
+              startTaskUid: startMode === 'task' ? startTaskUid || null : null,
+              startGate: startMode === 'time' && Boolean(start),
               allDay,
               ...(description ? { description } : {}),
               status,
               priority,
+              color,
               recurrenceRule:
                 recurrence === 'none'
                   ? null
@@ -301,7 +348,7 @@ export function TaskDialog({
               autoFocus
             />
           </label>
-          {!simple && (
+          {!simple && calendars.length > 1 && (
             <label>
               Calendar
               <select
@@ -322,25 +369,35 @@ export function TaskDialog({
               )}
             </label>
           )}
-          <label className="check-field">
-            <input
-              type="checkbox"
-              checked={status === 'completed'}
-              onChange={(event) =>
-                setStatus(event.target.checked ? 'completed' : 'needs-action')
-              }
-            />
-            Completed
-          </label>
+          {task && (
+            <label className="check-field">
+              <input
+                type="checkbox"
+                checked={status === 'completed'}
+                onChange={(event) =>
+                  setStatus(event.target.checked ? 'completed' : 'needs-action')
+                }
+              />
+              Completed
+            </label>
+          )}
+          <ColorPicker
+            value={color}
+            onChange={(chosen) => {
+              setColor(chosen);
+              setManualColor(true);
+            }}
+          />
           {!simple && (!task || onAddSubtask) && (
-            <section
-              className="subtask-editor"
+            <details
+              className="subtask-editor sl-subtasks-fold"
+              open={subtasks.length > 0}
               aria-labelledby="subtask-heading"
             >
-              <div className="subtask-editor-heading">
+              <summary className="subtask-editor-heading">
                 <h3 id="subtask-heading">Subtasks</h3>
                 <span>{subtasks.length + draftSubtasks.length}</span>
-              </div>
+              </summary>
               {subtasks.length > 0 && (
                 <ul>
                   {subtasks.map((child) => (
@@ -426,7 +483,7 @@ export function TaskDialog({
                   Add
                 </button>
               </div>
-            </section>
+            </details>
           )}
           {!simple && (
             <>
@@ -450,44 +507,6 @@ export function TaskDialog({
               </label>
               <div className="date-fields">
                 <div className="date-time-field">
-                  <span>Starts</span>
-                  <div className="date-time-inputs">
-                    <input
-                      aria-label="Start date"
-                      type="date"
-                      value={datePart(start)}
-                      onChange={(event) => {
-                        const value = allDay
-                          ? event.target.value
-                          : withDate(start, event.target.value);
-                        setStart(value);
-                        if (value) {
-                          if (!due) setDue(value);
-                          else if (datePart(value) > datePart(due))
-                            setDue(
-                              allDay
-                                ? datePart(value)
-                                : withDate(due, datePart(value)),
-                            );
-                        }
-                      }}
-                    />
-                    {!allDay && (
-                      <ClockInput
-                        label="Start time"
-                        value={timePart(start)}
-                        timeFormat={timeFormat}
-                        onChange={(time) => {
-                          const value = withTime(start, time);
-                          setStart(value);
-                          if (value && due && value >= due)
-                            setDue(shiftTime(value, 1));
-                        }}
-                      />
-                    )}
-                  </div>
-                </div>
-                <div className="date-time-field">
                   <span>Due</span>
                   <div className="date-time-inputs">
                     <input
@@ -499,15 +518,12 @@ export function TaskDialog({
                           ? event.target.value
                           : withDate(due, event.target.value);
                         setDue(value);
-                        if (value) {
-                          if (!start) setStart(value);
-                          else if (datePart(value) < datePart(start))
-                            setStart(
-                              allDay
-                                ? datePart(value)
-                                : withDate(start, datePart(value)),
-                            );
-                        }
+                        if (
+                          startMode === 'time' &&
+                          value &&
+                          (!start || value < start)
+                        )
+                          setStart(value);
                       }}
                     />
                     {!allDay && (
@@ -515,24 +531,103 @@ export function TaskDialog({
                         label="Due time"
                         value={timePart(due)}
                         timeFormat={timeFormat}
-                        onChange={(time) => {
-                          const value = withTime(due, time);
-                          setDue(value);
-                          if (value && start && value <= start)
-                            setStart(shiftTime(value, -1));
-                          else if (recurrence !== 'none' && !start)
-                            setStart(value);
-                        }}
+                        onChange={(time) => setDue(withTime(due, time))}
                       />
                     )}
                   </div>
                 </div>
               </div>
+              <details className="sl-start-fold">
+                <summary>
+                  <span>Start</span>
+                  {startMode === 'time' && start && (
+                    <span className="sl-start-hint">{datePart(start)}</span>
+                  )}
+                  {startMode === 'task' && startTaskUid && (
+                    <span className="sl-start-hint">After task</span>
+                  )}
+                </summary>
+                <label>
+                  Start condition
+                  <select
+                    aria-label="Start condition"
+                    value={startMode}
+                    onChange={(event) =>
+                      setStartMode(
+                        event.target.value as 'none' | 'time' | 'task',
+                      )
+                    }
+                  >
+                    <option value="none">No start condition</option>
+                    <option value="time">Start on date/time</option>
+                    <option value="task">After another task finishes</option>
+                  </select>
+                </label>
+                {startMode === 'time' && (
+                  <div className="date-time-field">
+                    <span>Starts</span>
+                    <div className="date-time-inputs">
+                      <input
+                        aria-label="Start date"
+                        type="date"
+                        value={datePart(start)}
+                        onChange={(event) => {
+                          const value = allDay
+                            ? event.target.value
+                            : withDate(start, event.target.value);
+                          setStart(value);
+                          if (value && (!due || value > due)) setDue(value);
+                        }}
+                      />
+                      {!allDay && (
+                        <ClockInput
+                          label="Start time"
+                          value={timePart(start)}
+                          timeFormat={timeFormat}
+                          onChange={(time) => setStart(withTime(start, time))}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
+                {startMode === 'task' && (
+                  <label>
+                    Prerequisite task
+                    <select
+                      aria-label="Prerequisite task"
+                      value={startTaskUid}
+                      onChange={(event) => setStartTaskUid(event.target.value)}
+                      required
+                    >
+                      <option value="">Choose a task…</option>
+                      {startTaskUid &&
+                        !availableTasks.some(
+                          (candidate) => candidate.uid === startTaskUid,
+                        ) && (
+                          <option value={startTaskUid}>
+                            Linked task (not available)
+                          </option>
+                        )}
+                      {prerequisiteOptions.map((candidate) => (
+                        <option value={candidate.uid} key={candidate.uid}>
+                          {candidate.completed ? '✓ ' : ''}
+                          {candidate.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </details>
               <label>
                 Priority
                 <select
                   value={priority}
-                  onChange={(event) => setPriority(Number(event.target.value))}
+                  onChange={(event) => {
+                    const next = Number(event.target.value);
+                    setPriority(next);
+                    if (!manualColor)
+                      setColor(next === 1 ? P1_TASK_COLOR : DEFAULT_TASK_COLOR);
+                  }}
                 >
                   <option value={0}>Unspecified</option>
                   {Array.from({ length: 9 }, (_, index) => (

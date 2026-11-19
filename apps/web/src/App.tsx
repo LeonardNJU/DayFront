@@ -51,6 +51,17 @@ import type { TimeFormat } from './ClockInput.js';
 import { CalendarManager } from './CalendarManager.js';
 import { taskCalendarRange } from './calendar-display.js';
 import { TaskDialog } from './TaskDialog.js';
+import {
+  calendarHistory,
+  calendarHistoryChangedEvent,
+} from './change-history.js';
+import {
+  DEFAULT_EVENT_COLOR,
+  defaultTaskColor,
+  P1_TASK_COLOR,
+} from './palette.js';
+import { applySemanticEventAppearance } from './semantic.js';
+import { installCalendarShortcuts } from './keyboard.js';
 import { LoginPage } from './LoginPage.js';
 import { fuzzyTitleMatch } from './search.js';
 
@@ -63,17 +74,39 @@ const entrySymbols = {
 export function CalendarEntryContent({
   entry,
   timeText,
+  onToggle,
 }: {
   entry: {
     entryType: 'event' | 'note' | 'todo';
     title: string;
     recurring: boolean;
+    completed?: boolean;
   };
   timeText: string;
+  onToggle?: () => void;
 }) {
   const type = entrySymbols[entry.entryType];
   return (
     <span className="calendar-entry-content">
+      {entry.entryType === 'todo' && onToggle && (
+        <button
+          className={
+            'leo-calendar-task-toggle' + (entry.completed ? ' is-done' : '')
+          }
+          type="button"
+          title={entry.completed ? 'Reopen task' : 'Complete task'}
+          aria-label={(entry.completed ? 'Reopen ' : 'Complete ') + entry.title}
+          aria-pressed={Boolean(entry.completed)}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onToggle();
+          }}
+        >
+          {entry.completed ? '✓' : ''}
+        </button>
+      )}
       {timeText && <span className="calendar-entry-time">{timeText}</span>}
       <span className="calendar-entry-title">{entry.title}</span>
       <span
@@ -210,6 +243,25 @@ function taskHierarchy(tasks: readonly CalendarTask[]) {
   };
 }
 
+function taskReleased(
+  task: CalendarTask,
+  now: number,
+  available: readonly CalendarTask[],
+): boolean {
+  if (task.start && task.startGate !== false) {
+    const timestamp = /^\d{4}-\d{2}-\d{2}$/.test(task.start)
+      ? new Date(task.start + 'T00:00:00').getTime()
+      : new Date(task.start).getTime();
+    if (Number.isFinite(timestamp) && timestamp > now) return false;
+  }
+  return (
+    !task.startTaskUid ||
+    available.some(
+      (candidate) => candidate.uid === task.startTaskUid && candidate.completed,
+    )
+  );
+}
+
 function taskStatusInput(
   task: CalendarTask,
   status: 'needs-action' | 'completed',
@@ -223,7 +275,18 @@ function taskStatusInput(
     ...(task.description ? { description: task.description } : {}),
     status,
     priority: task.priority,
+    ...(task.category ? { category: task.category } : {}),
+    ...(task.color ? { color: task.color } : {}),
+    ...(task.startTaskUid ? { startTaskUid: task.startTaskUid } : {}),
+    ...(task.startGate !== undefined ? { startGate: task.startGate } : {}),
     recurrenceRule: task.recurrenceRule ?? null,
+    ...(task.recurrenceId
+      ? {
+          recurrenceId: task.recurrenceId,
+          occurrenceStart: task.start ?? task.due,
+          recurrenceScope: 'occurrence' as const,
+        }
+      : {}),
     ...(task.parentUid ? { parentUid: task.parentUid } : {}),
   };
 }
@@ -311,7 +374,11 @@ function TaskTreeItem({
             )}
           </span>
           {task.priority > 0 && (
-            <span className="task-priority" title={`Priority ${task.priority}`}>
+            <span
+              className="task-priority"
+              style={task.priority === 1 ? { color: P1_TASK_COLOR } : undefined}
+              title={`Priority ${task.priority}`}
+            >
               P{task.priority}
             </span>
           )}
@@ -418,47 +485,6 @@ function TaskGroup({
         </ul>
       )}
     </details>
-  );
-}
-
-function EntryTypeDialog({
-  date,
-  end,
-  onCancel,
-  onSelect,
-}: {
-  date: string;
-  end?: string;
-  onCancel: () => void;
-  onSelect: (type: 'event' | 'task') => void;
-}) {
-  return (
-    <div className="dialog-backdrop" role="presentation" onMouseDown={onCancel}>
-      <section
-        className="entry-type-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="entry-type-title"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <h2 id="entry-type-title">
-          Create on {date.slice(0, 10)}
-          {end && end !== date ? ` – ${end.slice(0, 10)}` : ''}
-        </h2>
-        <p>What would you like to add?</p>
-        <div className="entry-type-actions">
-          <button type="button" onClick={() => onSelect('event')} autoFocus>
-            <span aria-hidden="true">◆</span> New event
-          </button>
-          <button type="button" onClick={() => onSelect('task')}>
-            <span aria-hidden="true">☑</span> New task
-          </button>
-        </div>
-        <button type="button" className="entry-type-cancel" onClick={onCancel}>
-          Cancel
-        </button>
-      </section>
-    </div>
   );
 }
 
@@ -639,10 +665,6 @@ function CalendarApp({
   const [taskEditorReturn, setTaskEditorReturn] = useState<CalendarTask>();
   const [taskInitialDate, setTaskInitialDate] = useState<string>();
   const [taskInitialEnd, setTaskInitialEnd] = useState<string>();
-  const [creationRange, setCreationRange] = useState<{
-    start: string;
-    end?: string;
-  }>();
   const [searchOpen, setSearchOpen] = useState(false);
   const [pingResourceId, setPingResourceId] = useState<string>();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -660,9 +682,12 @@ function CalendarApp({
     new Set(),
   );
   const [initialCalendarDate] = useState(() => dateFromUrl());
+  const [historyStatus, setHistoryStatus] = useState('');
   const [responsiveDayMaxEvents, setResponsiveDayMaxEvents] = useState<
     true | number
   >(true);
+
+  useEffect(() => installCalendarShortcuts(), []);
 
   useEffect(() => {
     const surface = calendarMainRef.current;
@@ -723,7 +748,22 @@ function CalendarApp({
           day: 'timeGridDay',
           agenda: 'listMonth',
         };
-        calendarRef.current?.getApi().changeView(views[config.ui.defaultView]);
+        // A saved view always wins over server defaults.
+        try {
+          const mobile = window.matchMedia('(max-width:720px)').matches;
+          if (
+            !localStorage.getItem(
+              mobile ? 'sl-mobile-view' : 'sl-calendar-view',
+            )
+          )
+            calendarRef.current
+              ?.getApi()
+              .changeView(views[config.ui.defaultView]);
+        } catch {
+          calendarRef.current
+            ?.getApi()
+            .changeView(views[config.ui.defaultView]);
+        }
       })
       .catch(() => {
         document.documentElement.dataset.theme = 'auto';
@@ -768,11 +808,122 @@ function CalendarApp({
     return () => controller.abort();
   }, [selected]);
 
+  useEffect(() => {
+    // Re-evaluate task start gates at their next release and when the tab becomes visible.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const releaseTimes = tasks
+      .filter((task) => task.start && task.startGate !== false)
+      .map((task) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(task.start!)
+          ? new Date(task.start! + 'T00:00:00').getTime()
+          : new Date(task.start!).getTime(),
+      )
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b);
+    function schedule() {
+      const now = Date.now();
+      const next = releaseTimes.find((timestamp) => timestamp > now);
+      if (next !== undefined)
+        timer = setTimeout(
+          () => {
+            calendarRef.current?.getApi().refetchEvents();
+            schedule();
+          },
+          Math.max(100, Math.min(next - now + 500, 2_147_480_000)),
+        );
+    }
+    const visibility = () => {
+      if (document.visibilityState === 'visible') {
+        calendarRef.current?.getApi().refetchEvents();
+      }
+    };
+    schedule();
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', visibility);
+    };
+  }, [tasks]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void getTaskList([...selected])
+        .then(setTasks)
+        .catch(() => undefined);
+      calendarRef.current?.getApi().refetchEvents();
+      setHistoryStatus(
+        calendarHistory.canUndo ? 'Calendar change recorded' : 'Change applied',
+      );
+    };
+    const failure = (event: Event) => {
+      if (event instanceof CustomEvent && typeof event.detail === 'string')
+        setHistoryStatus(event.detail);
+    };
+    const keydown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      if (
+        event.defaultPrevented ||
+        event.repeat ||
+        event.altKey ||
+        key !== 'z' ||
+        !(event.ctrlKey !== event.metaKey) ||
+        !(event.ctrlKey || event.metaKey)
+      )
+        return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (
+        target?.closest(
+          'input, textarea, select, [contenteditable], [role="textbox"]',
+        ) ||
+        document.querySelector('[role="dialog"],.dialog-backdrop')
+      )
+        return;
+      if (event.shiftKey ? !calendarHistory.canRedo : !calendarHistory.canUndo)
+        return;
+      event.preventDefault();
+      if (event.shiftKey) void calendarHistory.redo();
+      else void calendarHistory.undo();
+    };
+    window.addEventListener(calendarHistoryChangedEvent, refresh);
+    window.addEventListener('sl-history-error', failure);
+    window.addEventListener('keydown', keydown, true);
+    return () => {
+      window.removeEventListener(calendarHistoryChangedEvent, refresh);
+      window.removeEventListener('sl-history-error', failure);
+      window.removeEventListener('keydown', keydown, true);
+    };
+  }, [selected]);
+
+  useEffect(() => {
+    function handleDateHeaderClick(event: MouseEvent) {
+      const target = event.target instanceof Element ? event.target : null;
+      const header = target?.closest(
+        '.fc-col-header-cell[data-date],.fc-daygrid-day-top',
+      );
+      const date =
+        header?.getAttribute('data-date') ??
+        header?.closest('[data-date]')?.getAttribute('data-date');
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setTaskInitialDate(date);
+      setTaskInitialEnd(undefined);
+      setTaskEditorReturn(undefined);
+      setTaskEditor(null);
+    }
+    document.addEventListener('click', handleDateHeaderClick, true);
+    return () =>
+      document.removeEventListener('click', handleDateHeaderClick, true);
+  }, []);
+
   const today = localDateKey(new Date().toISOString());
   const hierarchy = taskHierarchy(tasks);
   const activeTasks = sortedTasks(
     hierarchy.roots.filter(
-      (task) => !task.completed && task.status !== 'cancelled',
+      (task) =>
+        !task.completed &&
+        task.status !== 'cancelled' &&
+        taskReleased(task, Date.now(), tasks),
     ),
   );
   const completedTasks = sortedTasks(
@@ -813,7 +964,7 @@ function CalendarApp({
           end: info.end,
           calendarIds: [...selected],
         };
-        const [events, tasks] = await Promise.all([
+        const [events, tasksInRange] = await Promise.all([
           getEvents(range),
           getTasks(range),
         ]);
@@ -824,7 +975,8 @@ function CalendarApp({
           ]),
         );
         const calendarEntries: object[] = events.map((event: CalendarEvent) => {
-          const color = colors.get(event.calendarId) ?? '#5b8def';
+          const color =
+            event.color ?? colors.get(event.calendarId) ?? DEFAULT_EVENT_COLOR;
           return {
             id: event.id,
             title: event.title,
@@ -837,18 +989,30 @@ function CalendarApp({
             editable: !event.readOnly,
             startEditable: !event.readOnly,
             durationEditable: false,
+            classNames: [
+              ...(event.category ? ['sl-palette-' + event.category] : []),
+              ...(new Date(event.end ?? event.start).getTime() <= Date.now()
+                ? ['leo-past-event']
+                : []),
+            ],
             extendedProps: event,
           };
         });
         const linkedChildren = new Set(
-          tasks.flatMap((task) => task.childUids ?? []),
+          tasksInRange.flatMap((task) => task.childUids ?? []),
         );
         calendarEntries.push(
-          ...tasks.flatMap((task) => {
-            if (task.parentUid || linkedChildren.has(task.uid)) return [];
+          ...tasksInRange.flatMap((task) => {
+            if (
+              task.parentUid ||
+              linkedChildren.has(task.uid) ||
+              task.completed ||
+              !taskReleased(task, Date.now(), [...tasks, ...tasksInRange])
+            )
+              return [];
             const range = taskCalendarRange(task);
             if (!range) return [];
-            const color = colors.get(task.calendarId) ?? '#5b8def';
+            const color = defaultTaskColor(task.priority, task.color);
             return [
               {
                 id: `task-${task.id}`,
@@ -861,9 +1025,10 @@ function CalendarApp({
                 editable: true,
                 startEditable: true,
                 durationEditable: false,
-                classNames: task.completed
-                  ? ['task-completed']
-                  : ['task-entry'],
+                classNames: [
+                  'task-entry',
+                  ...(task.category ? ['sl-palette-' + task.category] : []),
+                ],
                 extendedProps: { ...task, entryType: 'todo' as const },
               },
             ];
@@ -878,7 +1043,7 @@ function CalendarApp({
         failure(eventError);
       }
     },
-    [calendars, selected],
+    [calendars, selected, tasks],
   );
 
   function toggleCalendar(id: string) {
@@ -916,6 +1081,12 @@ function CalendarApp({
           ...(task.description ? { description: task.description } : {}),
           status: task.status,
           priority: task.priority,
+          ...(task.category ? { category: task.category } : {}),
+          ...(task.color ? { color: task.color } : {}),
+          ...(task.startTaskUid ? { startTaskUid: task.startTaskUid } : {}),
+          ...(task.startGate !== undefined
+            ? { startGate: task.startGate }
+            : {}),
           recurrenceRule: task.recurrenceRule ?? null,
           ...(task.recurrenceId
             ? {
@@ -946,6 +1117,8 @@ function CalendarApp({
           allDay: event.allDay,
           ...(event.description ? { description: event.description } : {}),
           ...(event.location ? { location: event.location } : {}),
+          ...(event.category ? { category: event.category } : {}),
+          ...(event.color ? { color: event.color } : {}),
           recurrenceRule: event.recurrenceRule ?? null,
           ...(event.recurrenceId
             ? {
@@ -1072,6 +1245,14 @@ function CalendarApp({
               ...(child.description ? { description: child.description } : {}),
               status: input.status === 'completed' ? 'completed' : child.status,
               priority: child.priority,
+              ...(child.category ? { category: child.category } : {}),
+              ...(child.color ? { color: child.color } : {}),
+              ...(child.startTaskUid
+                ? { startTaskUid: child.startTaskUid }
+                : {}),
+              ...(child.startGate !== undefined
+                ? { startGate: child.startGate }
+                : {}),
               recurrenceRule: child.recurrenceRule ?? null,
               ...(child.parentUid ? { parentUid: child.parentUid } : {}),
             }),
@@ -1376,7 +1557,7 @@ function CalendarApp({
               <header className="brand">
                 <img
                   className="mark"
-                  src="/dayfront-logo.png"
+                  src="/sl-calendar-icon.png"
                   alt=""
                   aria-hidden="true"
                 />
@@ -1386,12 +1567,12 @@ function CalendarApp({
                     <br />
                     Own your data.
                   </p>
-                  <h1>DayFront</h1>
+                  <h1>SL Calendar</h1>
                 </div>
               </header>
             )}
 
-            {sidebarSettings.showCalendars && (
+            {sidebarSettings.showCalendars && calendars.length > 1 && (
               <details
                 className="calendar-picker"
                 open={calendarPickerOpen}
@@ -1557,6 +1738,11 @@ function CalendarApp({
         </aside>
       )}
 
+      {historyStatus && (
+        <span role="status" className="sl-history-status" aria-live="polite">
+          {historyStatus}
+        </span>
+      )}
       <main
         className={`calendar-main${calendarControlsOpen ? ' calendar-controls-open' : ''}${calendarFullscreen ? ' calendar-is-fullscreen' : ''}`}
         ref={calendarMainRef}
@@ -1589,8 +1775,108 @@ function CalendarApp({
             listPlugin,
             interactionPlugin,
           ]}
-          initialView="dayGridMonth"
+          views={{
+            timeGridThreeDay: {
+              type: 'timeGrid',
+              visibleRange: (current: Date) => {
+                const start = new Date(current);
+                start.setHours(0, 0, 0, 0);
+                start.setDate(start.getDate() - 1);
+                const end = new Date(start);
+                end.setDate(end.getDate() + 3);
+                return { start, end };
+              },
+              buttonText: '3 Days',
+            },
+            timeGridFourDay: {
+              type: 'timeGrid',
+              visibleRange: (current: Date) => {
+                const start = new Date(current);
+                start.setHours(0, 0, 0, 0);
+                start.setDate(start.getDate() - 1);
+                const end = new Date(start);
+                end.setDate(end.getDate() + 4);
+                return { start, end };
+              },
+              buttonText: '4 Days',
+            },
+          }}
+          initialView={(() => {
+            try {
+              const mobile = window.matchMedia('(max-width:720px)').matches;
+              const saved = localStorage.getItem(
+                mobile ? 'sl-mobile-view' : 'sl-calendar-view',
+              );
+              const allowed = [
+                'dayGridMonth',
+                'timeGridWeek',
+                'timeGridThreeDay',
+                'timeGridFourDay',
+                'timeGridDay',
+                'listMonth',
+              ];
+              return saved && allowed.includes(saved)
+                ? saved
+                : mobile
+                  ? 'timeGridDay'
+                  : 'timeGridWeek';
+            } catch {
+              return 'timeGridWeek';
+            }
+          })()}
           customButtons={{
+            prev: {
+              icon: 'chevron-left',
+              hint: 'Previous',
+              click: () => {
+                const api = calendarRef.current?.getApi();
+                if (!api) return;
+                if (api.view.type === 'timeGridThreeDay') {
+                  const d = api.getDate();
+                  d.setDate(d.getDate() - 3);
+                  api.gotoDate(d);
+                } else if (api.view.type === 'timeGridFourDay') {
+                  const d = new Date(api.view.activeStart);
+                  d.setDate(d.getDate() - 3);
+                  api.gotoDate(d);
+                } else api.prev();
+              },
+            },
+            next: {
+              icon: 'chevron-right',
+              hint: 'Next',
+              click: () => {
+                const api = calendarRef.current?.getApi();
+                if (!api) return;
+                if (api.view.type === 'timeGridThreeDay') {
+                  const d = api.getDate();
+                  d.setDate(d.getDate() + 3);
+                  api.gotoDate(d);
+                } else if (api.view.type === 'timeGridFourDay') {
+                  const d = new Date(api.view.activeStart);
+                  d.setDate(d.getDate() + 5);
+                  api.gotoDate(d);
+                } else api.next();
+              },
+            },
+            quickEvent: {
+              text: '',
+              hint: 'New event',
+              click: () =>
+                setEditor({
+                  initialDate: localDateKey(new Date().toISOString()),
+                }),
+            },
+            quickTask: {
+              text: '',
+              hint: 'New task',
+              click: () => {
+                setTaskInitialDate(undefined);
+                setTaskInitialEnd(undefined);
+                setTaskEditorReturn(undefined);
+                setTaskEditor(null);
+              },
+            },
             fullScreen: {
               text: '',
               hint: calendarFullscreen
@@ -1626,7 +1912,7 @@ function CalendarApp({
               ? 'fullScreen search compactMenu sidebarToggle prev,next today'
               : 'fullScreen search compactMenu prev,next today',
             center: 'title',
-            right: `dayGridMonth,timeGridWeek,timeGridDay,listMonth${onLogout && !sidebarVisible ? ' signOut' : ''}`,
+            right: `dayGridMonth,timeGridWeek,timeGridFourDay,timeGridDay,listMonth${onLogout && !sidebarVisible ? ' signOut' : ''}`,
           }}
           buttonText={{
             today: 'Today',
@@ -1634,6 +1920,8 @@ function CalendarApp({
             week: 'Week',
             day: 'Day',
             list: 'Agenda',
+            timeGridFourDay: '4 Days',
+            timeGridThreeDay: '3 Days',
           }}
           eventTimeFormat={{
             hour: '2-digit',
@@ -1646,11 +1934,85 @@ function CalendarApp({
             hour12: timeFormat === '12h',
           }}
           events={loadEvents}
-          datesSet={(info) =>
+          datesSet={(info) => {
             updateUrlDate(
               localDateKey(info.view.calendar.getDate().toISOString()),
-            )
+            );
+            try {
+              const mobile = window.matchMedia('(max-width:720px)').matches;
+              localStorage.setItem(
+                mobile ? 'sl-mobile-view' : 'sl-calendar-view',
+                info.view.type,
+              );
+            } catch {
+              /* private browsing may disable storage */
+            }
+            (
+              window as unknown as { slMobileCalendar?: unknown }
+            ).slMobileCalendar = {
+              calendar: info.view.calendar,
+              createEvent: (start: string, end?: string) =>
+                setEditor({
+                  initialDate: start,
+                  ...(end ? { initialEnd: end } : {}),
+                }),
+              createTask: (due: string) => {
+                setTaskInitialDate(due);
+                setTaskInitialEnd(undefined);
+                setTaskEditorReturn(undefined);
+                setTaskEditor(null);
+              },
+              openEntry: (entry: unknown) => {
+                const payload =
+                  entry && typeof entry === 'object' && 'extendedProps' in entry
+                    ? entry.extendedProps
+                    : entry;
+                const task = calendarTaskSchema.safeParse(payload);
+                if (task.success) {
+                  setTaskEditor(task.data);
+                  return;
+                }
+                const ev = calendarEventSchema.safeParse(payload);
+                if (ev.success && !ev.data.readOnly)
+                  setEditor({ event: ev.data });
+              },
+            };
+            window.dispatchEvent(new Event('slm-date-changed'));
+          }}
+          eventsSet={() =>
+            window.dispatchEvent(new Event('slm-events-changed'))
           }
+          eventDidMount={(info) => {
+            const task = calendarTaskSchema.safeParse(info.event.extendedProps);
+            const event = calendarEventSchema.safeParse(
+              info.event.extendedProps,
+            );
+            const entry = task.success
+              ? task.data
+              : event.success
+                ? event.data
+                : undefined;
+            if (!entry) return;
+            applySemanticEventAppearance(info.el, entry);
+            if (entry.color || (task.success && task.data.priority === 1)) {
+              const color = task.success
+                ? defaultTaskColor(task.data.priority, task.data.color)
+                : event.success
+                  ? event.data.color
+                  : undefined;
+              if (color) {
+                info.el.style.setProperty(
+                  'background-color',
+                  color,
+                  'important',
+                );
+                info.el.style.setProperty('border-color', color, 'important');
+                info.el
+                  .querySelector<HTMLElement>('.fc-event-main')
+                  ?.style.setProperty('color', '#fff', 'important');
+              }
+            }
+          }}
           eventContent={(info) => {
             const entry = calendarEventSchema
               .or(calendarTaskSchema)
@@ -1659,6 +2021,15 @@ function CalendarApp({
               <CalendarEntryContent
                 entry={entry.data}
                 timeText={info.timeText}
+                {...(entry.data.entryType === 'todo'
+                  ? {
+                      onToggle: () => {
+                        const task = calendarTaskSchema.safeParse(entry.data);
+                        if (task.success)
+                          void toggleSubtask(task.data, !task.data.completed);
+                      },
+                    }
+                  : {})}
               />
             ) : (
               info.event.title
@@ -1670,13 +2041,20 @@ function CalendarApp({
           dayMaxEvents={responsiveDayMaxEvents}
           eventDisplay="block"
           selectable
-          select={(info) =>
-            setCreationRange({
-              start: info.startStr,
-              end: info.allDay ? previousDate(info.endStr) : info.endStr,
-            })
-          }
-          dateClick={(info) => setCreationRange({ start: info.dateStr })}
+          selectMinDistance={6}
+          select={(info) => {
+            setEditor({
+              initialDate: info.startStr,
+              initialEnd: info.allDay ? previousDate(info.endStr) : info.endStr,
+            });
+            info.view.calendar.unselect();
+          }}
+          dateClick={(info) => {
+            setTaskInitialDate(info.dateStr);
+            setTaskInitialEnd(undefined);
+            setTaskEditorReturn(undefined);
+            setTaskEditor(null);
+          }}
           eventClassNames={(info) =>
             info.event.extendedProps.resourceId === pingResourceId
               ? ['event-search-ping']
@@ -1725,6 +2103,7 @@ function CalendarApp({
           simple={Boolean(
             taskEditor && hierarchy.childUids.has(taskEditor.uid),
           )}
+          availableTasks={tasks}
           subtasks={
             taskEditor
               ? (hierarchy.childrenByUid.get(taskEditor.uid) ?? [])
@@ -1750,28 +2129,6 @@ function CalendarApp({
               }
             : {})}
           {...(taskEditor ? { onDelete: removeTask } : {})}
-        />
-      )}
-      {creationRange && (
-        <EntryTypeDialog
-          date={creationRange.start}
-          {...(creationRange.end ? { end: creationRange.end } : {})}
-          onCancel={() => setCreationRange(undefined)}
-          onSelect={(type) => {
-            const range = creationRange;
-            setCreationRange(undefined);
-            if (type === 'event')
-              setEditor({
-                initialDate: range.start,
-                ...(range.end ? { initialEnd: range.end } : {}),
-              });
-            else {
-              setTaskInitialDate(range.start);
-              setTaskInitialEnd(range.end);
-              setTaskEditorReturn(undefined);
-              setTaskEditor(null);
-            }
-          }}
         />
       )}
       {searchOpen && (

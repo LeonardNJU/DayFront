@@ -26,6 +26,15 @@ export const calendarMutationSchema = z.object({
 
 export type CalendarMutation = z.infer<typeof calendarMutationSchema>;
 
+export const entryCategorySchema = z.enum([
+  'fixed',
+  'urgent',
+  'fun',
+  'routine',
+  'default',
+]);
+export const entryColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
 export const calendarEventSchema = z.object({
   id: z.string().min(1),
   resourceId: z.string().min(1),
@@ -37,6 +46,8 @@ export const calendarEventSchema = z.object({
   allDay: z.boolean(),
   description: z.string().optional(),
   location: z.string().optional(),
+  category: entryCategorySchema.optional(),
+  color: entryColorSchema.optional(),
   version: z.string().min(1),
   entryType: z.enum(['event', 'note', 'todo']).default('event'),
   recurring: z.boolean(),
@@ -56,6 +67,8 @@ export const eventMutationSchema = z
     allDay: z.boolean(),
     description: z.string().max(100_000).optional(),
     location: z.string().max(2_000).optional(),
+    category: entryCategorySchema.optional(),
+    color: entryColorSchema.optional(),
     recurrenceRule: z.string().max(2_000).nullable().optional(),
     recurrenceScope: z.enum(['series', 'occurrence']).optional(),
     recurrenceId: z.string().optional(),
@@ -125,6 +138,10 @@ export const calendarTaskSchema = z.object({
   completed: z.boolean(),
   completedAt: z.string().optional(),
   priority: z.number().int().min(0).max(9),
+  category: entryCategorySchema.optional(),
+  color: entryColorSchema.optional(),
+  startTaskUid: z.string().min(1).optional(),
+  startGate: z.boolean().optional(),
   version: z.string().min(1),
   entryType: z.literal('todo').default('todo'),
   recurring: z.boolean(),
@@ -146,6 +163,10 @@ export const taskMutationSchema = z
     description: z.string().max(100_000).optional(),
     status: taskStatusSchema.default('needs-action'),
     priority: z.number().int().min(0).max(9).default(0),
+    category: entryCategorySchema.optional(),
+    color: entryColorSchema.optional(),
+    startTaskUid: z.string().min(1).nullable().optional(),
+    startGate: z.boolean().optional(),
     recurrenceRule: z.string().max(2_000).nullable().optional(),
     recurrenceId: z.string().optional(),
     occurrenceStart: z.string().optional(),

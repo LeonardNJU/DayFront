@@ -46,6 +46,13 @@ export function parseMultiStatus(xml: string): DavPropertySet[] {
   const root = record(document);
   const multistatus = record(root?.multistatus);
   const responses = multistatus?.response;
+  // Stalwart returns a valid empty multistatus without a response array.
+  if (
+    root &&
+    Object.hasOwn(root, 'multistatus') &&
+    (responses === undefined || responses === null || responses === '')
+  )
+    return [];
   if (!Array.isArray(responses)) {
     throw new CalDavError(
       'CALDAV_PROTOCOL_ERROR',
